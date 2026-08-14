@@ -35,6 +35,7 @@ class RobotPlanState:
     plan: Plan
     current_waypoint: int  # index of most-recently-reached waypoiint
     latest_enqueued: int  # index of last enqueued waypoint
+    cut_index: int | None = None
 
 
 @dataclass
@@ -56,7 +57,6 @@ class DependencyManager:
         # Blockers referencing completed plan IDs are considered satisfied.
         self._completed_plan_ids: set[PlanId] = set()  # TODO clean up
 
-        self._cut_indices: dict[str, int] | None = None
 
     def set_plan(self, robot_id: str, plan: Plan) -> None:
         """
@@ -68,6 +68,7 @@ class DependencyManager:
             plan=plan,
             current_waypoint=0,
             latest_enqueued=0,
+            cut_index=None
         )
 
     def update_plan_after_cut(self, robot_id: str, new_plan: Plan) -> None:
@@ -80,10 +81,8 @@ class DependencyManager:
         state = self._robots[robot_id]
         old_plan_id = state.plan.plan_id
 
-        if self._cut_indices and robot_id in self._cut_indices:
-            cut_idx = self._cut_indices.pop(robot_id)  # clear stored commit cut
-        else:
-            cut_idx = state.latest_enqueued
+        cut_idx = state.cut_index if state.cut_index is not None else state.latest_enqueued
+        state.cut_index = None  # clear the previous cut
 
         retained = state.plan.waypoints[: cut_idx + 1]
         new_waypoints = list(new_plan.waypoints)
@@ -150,8 +149,8 @@ class DependencyManager:
 
         # Don't enqueue beyond the commit
         upper_bound = len(waypoints) - 1
-        if self._cut_indices and robot_id in self._cut_indices:
-            upper_bound = self._cut_indices[robot_id]
+        if state.cut_index is not None:
+            upper_bound = state.cut_index
 
         valid = []
 
@@ -237,7 +236,8 @@ class DependencyManager:
         committed_locations = self._build_committed_locations(cut_indices)
         # Check which agents have completed all waypoints in this plan.
         stationary_agents = self._build_stationary_agents()
-        self._cut_indices = cut_indices
+        for robot_id, idx in cut_indices.items():
+            self._robots[robot_id].cut_index = idx
         return CommitCut(committed_locations, stationary_agents)
 
     def _compute_commit_cut(self) -> dict[str, int]:

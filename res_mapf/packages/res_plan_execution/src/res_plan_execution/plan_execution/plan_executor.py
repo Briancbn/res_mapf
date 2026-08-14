@@ -107,7 +107,7 @@ class PlanExecutor:
 
     def _subscribe_to_participant(self, participant_id: str) -> None:
         def _on_plan(plan: Plan) -> None:
-            logger.info("Received plan")
+            logger.info("Received plan for %s", participant_id)
             self._message_queue.put(("plan", participant_id, plan))
 
         self._transport.subscribe_plan(
