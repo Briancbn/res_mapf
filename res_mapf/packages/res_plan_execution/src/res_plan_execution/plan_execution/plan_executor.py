@@ -63,6 +63,7 @@ class PlanExecutor:
         self._dm = dependency_manager
 
         self._subscribed_participants: set[str] = set()
+        self._participants_lock = threading.Lock()
 
         self._message_queue: queue.Queue = queue.Queue()
         self._stop_event = threading.Event()
@@ -76,15 +77,19 @@ class PlanExecutor:
             self._on_committed_locations_request
         )
 
+        self._robot_controller.set_failure_callback(self._queue_robot_failure)
+
     def _on_robot_onboard(self, message: RobotOnboardMsg) -> None:
-        if message.robot_id not in self._subscribed_participants:
-            self._subscribed_participants.update(message.robot_id)
-            self._subscribe_to_participant(message.robot_id)
+        with self._participants_lock:
+            if message.robot_id in self._subscribed_participants:
+                return
+            self._subscribed_participants.add(message.robot_id)
+        self._subscribe_to_participant(message.robot_id)
 
     def _on_participant_discovery(self, message: ParticipantDiscoveryMsg) -> None:
-        incoming = set(message.participants)
-        new_participants = incoming - self._subscribed_participants
-        self._subscribed_participants.update(new_participants)
+        with self._participants_lock:
+            new_participants = set(message.participants) - self._subscribed_participants
+            self._subscribed_participants.update(new_participants)
         for participant_id in new_participants:
             self._subscribe_to_participant(participant_id)
 
@@ -101,6 +106,9 @@ class PlanExecutor:
 
     def _on_committed_locations_request(self, request_id: str) -> None:
         self._message_queue.put(("committed_locations_request", request_id))
+
+    def _queue_robot_failure(self, robot_id: str, details: str) -> None:
+        self._message_queue.put(("error", robot_id, details))
 
     def start(self) -> None:
         self._thread.start()
@@ -163,10 +171,12 @@ class PlanExecutor:
             if not waypoints:
                 continue
 
+            task_id = self._dm.get_task_id(robot_id) or ""
             waypoints_with_callbacks = [
                 WaypointWithCallback(
                     location=Location(name=wp.name, x=wp.position[0], y=wp.position[1]),
                     on_reached=self._make_reached_callback(robot_id, i),
+                    task_id=task_id,
                 )
                 for i, wp in waypoints
             ]
