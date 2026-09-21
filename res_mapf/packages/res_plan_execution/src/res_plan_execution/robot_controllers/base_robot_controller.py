@@ -34,10 +34,11 @@ class WaypointWithCallback:
 
 
 class BaseRobotController(ABC):
-
     def __init__(self, map_data: MapData) -> None:
         self.map_data = map_data
-        self._on_robot_failed: Callable[[str, str], None] = lambda robot_id, details: None
+        self._on_robot_failed: Callable[[str, str], None] = lambda robot_id, details: (
+            None
+        )
 
     def set_failure_callback(self, callback: Callable[[str, str], None]) -> None:
         """Called by Plan Executor.
