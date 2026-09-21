@@ -33,6 +33,8 @@ from res_plan_server.task_status import TaskStatus, TaskStatusUpdate
 from res_plan_server.transport.transport_messages import (
     CommittedLocationsResponseMsg,
     ParticipantDiscoveryMsg,
+    PlanErrorCode,
+    PlanErrorMsg,
     PlanProgressMsg,
     RobotOnboardMsg,
 )
@@ -107,8 +109,10 @@ class PlanExecutor:
     def _on_committed_locations_request(self, request_id: str) -> None:
         self._message_queue.put(("committed_locations_request", request_id))
 
-    def _queue_robot_failure(self, robot_id: str, details: str) -> None:
-        self._message_queue.put(("error", robot_id, details))
+    def _queue_robot_failure(
+        self, robot_id: str, error_code: PlanErrorCode, message: str
+    ) -> None:
+        self._message_queue.put(("error", robot_id, error_code, message))
 
     def start(self) -> None:
         self._thread.start()
@@ -149,8 +153,8 @@ class PlanExecutor:
                 self._handle_resume(robot_ids)
 
             elif msg_type == "error":
-                _, robot_id, reason = msg
-                self._handle_error(robot_id, reason)
+                _, robot_id, error_code, reason = msg
+                self._handle_error(robot_id, error_code, reason)
 
             else:
                 logger.warning("Unknown message msg_type: %s", msg_type)
@@ -256,11 +260,21 @@ class PlanExecutor:
     def _handle_resume(self, robot_ids: set[str]) -> None:
         logger.warning("Pause/resume is not implemented.")
 
-    def _handle_error(self, robot_id: str, reason: str) -> None:
+    def _handle_error(
+        self, robot_id: str, error_code: PlanErrorCode, reason: str
+    ) -> None:
+        state = self._dm.get_plan_state(robot_id)
         task_id = self._dm.get_task_id(robot_id)
+        plan_id = state.plan.plan_id if state is not None else None
+
         self._dm.on_plan_failed(robot_id)
         self._publish_task_status(task_id, robot_id, TaskStatus.FAILED, reason=reason)
-        self._transport.publish_plan_error(robot_id, reason)
+
+        if plan_id is not None:
+            self._transport.publish_plan_error(
+                robot_id,
+                PlanErrorMsg(plan_id=plan_id, error_code=error_code, details=reason),
+            )
         logger.error("Robot %s error: %s", robot_id, reason)
 
     # Task completion

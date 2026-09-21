@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
+from enum import IntEnum
 
 
 @dataclass(frozen=True)
@@ -64,8 +65,27 @@ class PlanProgressMsg:
     target_waypoint: int
 
 
+class PlanErrorCode(IntEnum):
+    # A replan is being requested for unspecified reasons. This will trigger a
+    # replan to occur.
+    REPLAN_REQUEST = 2001
+
+    # A replan is being requested because the planned path is blocked. If possible,
+    # the planner will gather the latest occupancy information available and generate
+    # a new plan.
+    PATH_BLOCKED = 2002
+
+    # The plan cannot be executed because some action in the plan is not recognized
+    # by the plan executor. This indicates that the system is misconfigured.
+    UNRECOGNIZED_ACTION = 2003
+
+    # The robot or infrastructure are not compatible with one of the actions in the
+    # plan. This indicates that the system is misconfigured.
+    INCOMPATIBLE_ACTION = 2004
+
+
 @dataclass(frozen=True)
 class PlanErrorMsg:
     plan_id: PlanIdMsg
-    error_code: int
+    error_code: PlanErrorCode
     details: str

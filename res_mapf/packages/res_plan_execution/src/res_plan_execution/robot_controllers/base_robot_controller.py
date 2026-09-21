@@ -22,6 +22,7 @@ from typing import Callable, List
 
 from res_map.map_data import MapData
 from res_mapf_planning.mapf_solve.mapf_solver_base import Location
+from res_plan_server.transport.transport_messages import PlanErrorCode
 
 
 @dataclass
@@ -36,15 +37,17 @@ class WaypointWithCallback:
 class BaseRobotController(ABC):
     def __init__(self, map_data: MapData) -> None:
         self.map_data = map_data
-        self._on_robot_failed: Callable[[str, str], None] = lambda robot_id, details: (
-            None
+        self._on_robot_failed: Callable[[str, PlanErrorCode, str], None] = (
+            lambda robot_id, error_code, details: None
         )
 
-    def set_failure_callback(self, callback: Callable[[str, str], None]) -> None:
+    def set_failure_callback(
+        self, callback: Callable[[str, PlanErrorCode, str], None]
+    ) -> None:
         """Called by Plan Executor.
 
-        callback(robot_id, details) must be called when the controller determines
-        that a request cannot be completed.
+        callback(robot_id, error_code, details) must be called when the controller
+        determines that a request cannot be completed.
         """
         self._on_robot_failed = callback
 
