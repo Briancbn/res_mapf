@@ -33,6 +33,7 @@ from res_plan_server.transport.transport_messages import (
     ParticipantDiscoveryMsg,
     PlanErrorCode,
     PlanErrorMsg,
+    PlanIdMsg,
     PlanProgressMsg,
     RobotOnboardMsg,
 )
@@ -142,7 +143,13 @@ def test_handle_error_reports_failed_plans_id_not_a_cleared_one() -> None:
     assert len(transport.published_plan_errors) == 1
     published_robot_id, error_msg = transport.published_plan_errors[0]
     assert published_robot_id == "robot_0"
-    assert error_msg.plan_id == plan_id, "must report the plan that failed, not None"
+    expected_plan_id_msg = PlanIdMsg(
+        destination_session=str(plan_id.destination_session),
+        plan_version=plan_id.plan_version,
+    )
+    assert error_msg.plan_id == expected_plan_id_msg, (
+        "must report the plan that failed, not None"
+    )
     assert error_msg.error_code == PlanErrorCode.PATH_BLOCKED
     assert error_msg.details == "obstacle detected on path"
 

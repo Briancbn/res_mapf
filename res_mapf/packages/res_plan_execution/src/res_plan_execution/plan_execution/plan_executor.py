@@ -21,6 +21,7 @@ from typing import Callable, Optional
 
 from res_mapf_planning.mapf_solve.mapf_solver_base import Location
 from res_mapf_planning.traffic_dependencies.models.plan import Plan
+from res_mapf_planning.traffic_dependencies.models.plan_id import PlanId
 from res_plan_execution.plan_execution.dependency_manager import DependencyManager
 from res_plan_execution.plan_execution.transport.executor_base_transport import (
     ExecutorBaseTransport,
@@ -35,9 +36,18 @@ from res_plan_server.transport.transport_messages import (
     ParticipantDiscoveryMsg,
     PlanErrorCode,
     PlanErrorMsg,
+    PlanIdMsg,
     PlanProgressMsg,
     RobotOnboardMsg,
 )
+
+
+def _to_plan_id_msg(plan_id: PlanId) -> PlanIdMsg:
+    return PlanIdMsg(
+        destination_session=str(plan_id.destination_session),
+        plan_version=plan_id.plan_version,
+    )
+
 
 logger = logging.getLogger("plan_executor")
 logging.basicConfig(
@@ -273,7 +283,11 @@ class PlanExecutor:
         if plan_id is not None:
             self._transport.publish_plan_error(
                 robot_id,
-                PlanErrorMsg(plan_id=plan_id, error_code=error_code, details=reason),
+                PlanErrorMsg(
+                    plan_id=_to_plan_id_msg(plan_id),
+                    error_code=error_code,
+                    details=reason,
+                ),
             )
         logger.error("Robot %s error: %s", robot_id, reason)
 
@@ -295,7 +309,7 @@ class PlanExecutor:
         self._transport.publish_progress(
             robot_id,
             PlanProgressMsg(
-                plan_id=state.plan.plan_id,
+                plan_id=_to_plan_id_msg(state.plan.plan_id),
                 reached_waypoint=state.current_waypoint,
                 target_waypoint=state.latest_enqueued,
             ),

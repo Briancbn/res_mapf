@@ -38,7 +38,7 @@ class TaskRequestMsg:
 
 @dataclass(frozen=True)
 class PlanIdMsg:
-    destination_uuid: str
+    destination_session: str
     plan_version: int
 
 
