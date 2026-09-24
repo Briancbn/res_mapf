@@ -150,7 +150,8 @@ class MultiAgentContext:
 
     def on_failed(self, agent_id: str, plan_id: PlanId) -> None:
         """
-        Clear stored start location
+        Mark agent as idle at its last known position so it can be replanned.
+        start_location is retained; goal_location is cleared (goal was never reached).
         """
         entry = self._agents.get(agent_id)
         if entry is None:
@@ -165,7 +166,6 @@ class MultiAgentContext:
             )
             return
 
-        entry.start_location = None
         entry.plan_id = None
         entry.goal_location = None
         entry.status = AgentStatus.IDLE
