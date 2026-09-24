@@ -148,7 +148,7 @@ class MultiAgentContext:
         entry.status = AgentStatus.IDLE
         logger.info("Agent %s completed plan %s", agent_id, plan_id)
 
-    def on_failed(self, agent_id: str, plan_id: str) -> None:
+    def on_failed(self, agent_id: str, plan_id: PlanId) -> None:
         """
         Clear stored start location
         """
