@@ -66,7 +66,15 @@ class DependencyManager:
         """
         Set a robot's plan, replacing the previous one.
         Waypoint 0 is the start waypoint.
+
+        Clears any commit-cut index left over from the old plan — like
+        update_plan_after_cut does — since it's an index into the old plan's
+        waypoints and the new plan may be shorter, which would otherwise let
+        get_valid_waypoints_and_advance's upper_bound run past the new
+        waypoints list and index out of range.
         """
+        if self._cut_indices is not None:
+            self._cut_indices.pop(robot_id, None)
         self._robots[robot_id] = RobotPlanState(
             robot_id=robot_id,
             plan=plan,
