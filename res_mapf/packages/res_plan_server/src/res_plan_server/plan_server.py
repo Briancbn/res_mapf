@@ -20,7 +20,7 @@ import threading
 import time
 from itertools import count
 from typing import Dict, Iterable, Iterator, Optional, Tuple
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from res_mapf_planning.mapf_solve.exceptions import MapfSolverError
 from res_mapf_planning.planning.mapf_coordinator import MAPFCoordinator, PlanningError
@@ -37,10 +37,21 @@ from res_plan_server.transport.transport_messages import (
     CommittedLocationsResponseMsg,
     ParticipantDiscoveryMsg,
     PlanErrorMsg,
+    PlanIdMsg,
     PlanProgressMsg,
     RobotOnboardMsg,
     TaskRequestMsg,
 )
+
+
+def _plan_id_from_msg(msg: PlanIdMsg) -> PlanId:
+    """Converts the wire-format PlanIdMsg (destination_session as str) into the
+    domain PlanId (destination_session as UUID) used to key
+    """
+    return PlanId(
+        destination_session=UUID(msg.destination_session),
+        plan_version=msg.plan_version,
+    )
 
 
 class PlanServer:
@@ -409,9 +420,10 @@ class PlanServer:
         return plan_id
 
     def _on_progress(self, robot_id: str, payload: PlanProgressMsg) -> None:
+        plan_id = _plan_id_from_msg(payload.plan_id)
         progress = Progress(
             progress=0.0,
-            plan_id=payload.plan_id,
+            plan_id=plan_id,
             reached_waypoint=payload.reached_waypoint,
             target_waypoint=payload.target_waypoint,
         )
@@ -420,7 +432,7 @@ class PlanServer:
         self.logger.debug("plan final waypoints: %s", str(self._plan_final_waypoints))
 
         with self._lock:
-            final_waypoint = self._plan_final_waypoints.get(progress.plan_id)
+            final_waypoint = self._plan_final_waypoints.get(plan_id)
 
             if final_waypoint is None:
                 return
@@ -435,7 +447,7 @@ class PlanServer:
                 (
                     tid
                     for tid, pid in self._task_id_to_plan_id.items()
-                    if pid == progress.plan_id
+                    if pid == plan_id
                 ),
                 None,
             )
@@ -444,13 +456,13 @@ class PlanServer:
             self._robot_to_plan_id.pop(
                 robot_id, None
             )  # Plan Executor assumes that new UUIDs are given on task completion.
-            self._plan_final_waypoints.pop(progress.plan_id, None)
+            self._plan_final_waypoints.pop(plan_id, None)
 
             if task_id is not None:
                 self.logger.info(
-                    "Robot %s completed task %s", robot_id, progress.plan_id
+                    "Robot %s completed task %s", robot_id, plan_id
                 )
-                self.context.on_completed(robot_id, progress.plan_id)
+                self.context.on_completed(robot_id, plan_id)
                 self._publish_status(task_id, robot_id, TaskStatus.COMPLETED)
 
     def _on_plan_error(self, robot_id: str, plan_error_msg: PlanErrorMsg) -> None:
